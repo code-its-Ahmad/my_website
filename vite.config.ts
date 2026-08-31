@@ -25,7 +25,6 @@ export default defineConfig({
         stabilityThreshold: 200,
         pollInterval: 100,
       },
-      ignoreErrors: true,
     },
   },
 
