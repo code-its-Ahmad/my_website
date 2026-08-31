@@ -19,7 +19,8 @@ import {
   Maximize2,
   ArrowRight,
   Headphones,
-  Sparkles
+  Sparkles,
+  MessageSquare,
 } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Preload, useGLTF } from '@react-three/drei';
@@ -84,18 +85,18 @@ interface SpeechQueueItem {
    ANIMATION VARIANTS (Optimized for GPU acceleration)
    ========================================================================= */
 const containerVariants: Variants = {
-  hidden: { opacity: 0, y: 25, scale: 0.95 },
+  hidden: { opacity: 0, y: 30, scale: 0.95 },
   visible: {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { type: 'spring', stiffness: 300, damping: 28, mass: 0.7 },
+    transition: { type: 'spring', stiffness: 320, damping: 28, mass: 0.7 },
   },
   exit: {
     opacity: 0,
-    y: 20,
+    y: 25,
     scale: 0.95,
-    transition: { duration: 0.18, ease: 'easeOut' },
+    transition: { duration: 0.2, ease: 'easeOut' },
   },
 };
 
@@ -110,8 +111,8 @@ const messageVariants: Variants = {
 };
 
 const buttonVariants: Variants = {
-  hover: { scale: 1.05, transition: { duration: 0.12 } },
-  tap: { scale: 0.93 },
+  hover: { scale: 1.06, transition: { duration: 0.15 } },
+  tap: { scale: 0.92 },
 };
 
 /* =========================================================================
@@ -664,7 +665,7 @@ ChatInputArea.displayName = 'ChatInputArea';
 const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
   const { theme: contextTheme } = useTheme();
   const theme = propTheme || contextTheme || 'dark';
-  const { playClick, playHover, playSuccess } = useSound();
+  const { playClick, playHover, playSuccess, vibrate } = useSound();
 
   // State Variables
   const [isOpen, setIsOpen] = useState(false);
@@ -753,12 +754,12 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Visual viewport resize handler for Infinix Hot 10 Android soft keyboard
+  // Visual viewport resize handler for Infinix, Samsung, Pixel Android & iOS soft keyboards
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
 
     const handleVisualViewportChange = () => {
-      if (isOpen && isMobile) {
+      if (isOpen) {
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 100);
@@ -769,7 +770,7 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
     return () => {
       window.visualViewport?.removeEventListener('resize', handleVisualViewportChange);
     };
-  }, [isOpen, isMobile]);
+  }, [isOpen]);
 
   // Smooth scroll to message bottom
   const scrollToBottom = useCallback(() => {
@@ -798,6 +799,7 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
 
       try {
         window.speechSynthesis.cancel();
+
         const cleanText = text
           .replace(/\[(.*?)\]\(.*?\)/g, '$1')
           .replace(/[#*_`~[\]()]/g, '')
@@ -1240,6 +1242,50 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
     }, 550 + Math.random() * 250);
   }, [isTyping, isSubmitting, playClick, handleBotResponse]);
 
+  /* =========================================================================
+     GLOBAL EVENT LISTENERS (Open from Command Palette, Navigation, Hero, etc.)
+     ========================================================================= */
+  useEffect(() => {
+    const handleOpenChat = (e?: any) => {
+      setIsOpen(true);
+      setIsMinimized(false);
+      vibrate(12);
+      playClick();
+      if (e?.detail?.query) {
+        setTimeout(() => {
+          handleSendMessage(e.detail.query);
+        }, 300);
+      }
+    };
+
+    const handleCloseChat = () => {
+      setIsOpen(false);
+    };
+
+    const handleToggleChat = () => {
+      setIsOpen((prev) => !prev);
+      if (isMinimized) setIsMinimized(false);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener('open-chatbot', handleOpenChat);
+    window.addEventListener('close-chatbot', handleCloseChat);
+    window.addEventListener('toggle-chatbot', handleToggleChat);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('open-chatbot', handleOpenChat);
+      window.removeEventListener('close-chatbot', handleCloseChat);
+      window.removeEventListener('toggle-chatbot', handleToggleChat);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, isMinimized, handleSendMessage, playClick, vibrate]);
+
   // Reset Conversation
   const handleResetChat = useCallback(() => {
     playClick();
@@ -1304,9 +1350,11 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
 
   return (
     <>
-      {/* Floating Trigger Button — hidden on mobile where bottom dock has chatbot */}
+      {/* =========================================================================
+          PERMANENT FLOATING TRIGGER BUTTON — VISIBLE & RESPONSIVE ON ALL DEVICES
+          ========================================================================= */}
       <div
-        className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-[48] hidden lg:flex items-center gap-2"
+        className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-[90] flex items-center gap-2 pointer-events-auto"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <motion.button
@@ -1314,36 +1362,59 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
           whileHover="hover"
           whileTap="tap"
           onClick={() => {
+            vibrate(15);
             playClick();
             setIsOpen(!isOpen);
             if (isMinimized) setIsMinimized(false);
           }}
           onMouseEnter={playHover}
-          className="relative group p-3.5 sm:p-4 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white shadow-2xl shadow-blue-500/40 border border-white/30 backdrop-blur-md focus:outline-none focus:ring-4 focus:ring-blue-500/40 transition-all cursor-pointer select-none"
+          className="relative group p-3 sm:p-4 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white shadow-2xl shadow-blue-500/40 border border-white/30 backdrop-blur-md focus:outline-none focus:ring-4 focus:ring-blue-500/40 transition-all cursor-pointer select-none touch-manipulation"
           aria-label={isOpen ? 'Close AI 3D Assistant' : 'Open AI 3D Assistant'}
         >
+          {/* Animated Glow Aura */}
           <span className="absolute -inset-1.5 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 opacity-70 blur-md group-hover:opacity-100 transition duration-300 animate-pulse pointer-events-none" />
 
           <div className="relative flex items-center justify-center">
-            {isOpen ? <X className="w-6 h-6" /> : <Bot className="w-6 h-6 sm:w-7 sm:h-7" />}
+            {isOpen ? <X className="w-5 h-5 sm:w-6 sm:h-6" /> : <Bot className="w-5 h-5 sm:w-6 sm:h-6" />}
           </div>
 
+          {/* Live Online Beacon */}
           {!isOpen && (
-            <span className="absolute top-0 right-0 flex h-4 w-4">
+            <span className="absolute top-0 right-0 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white dark:border-gray-900" />
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-white dark:border-gray-900" />
             </span>
           )}
 
+          {/* Desktop Hover Tooltip */}
           {!isOpen && !isMobile && (
-            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-gray-900/90 text-white text-xs font-semibold whitespace-nowrap shadow-xl border border-gray-700/60 opacity-0 group-hover:opacity-100 pointer-events-none transition-all">
+            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-gray-900/95 text-white text-xs font-semibold whitespace-nowrap shadow-xl border border-gray-700/60 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200">
               💬 Chat with 3D AI Assistant
             </span>
           )}
         </motion.button>
       </div>
 
-      {/* Main Chat Modal Window */}
+      {/* =========================================================================
+          MOBILE BACKDROP BLUR OVERLAY (Easy tap-to-dismiss on phone & tablet)
+          ========================================================================= */}
+      <AnimatePresence>
+        {isOpen && isMobile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setIsOpen(false)}
+            className="fixed inset-0 z-[94] bg-black/60 backdrop-blur-sm lg:hidden"
+            aria-hidden="true"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* =========================================================================
+          MAIN CHAT MODAL WINDOW
+          ========================================================================= */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -1351,9 +1422,9 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={`fixed z-[48] transition-all duration-300 flex flex-col overflow-hidden text-gray-900 dark:text-white bg-white/95 dark:bg-gray-950/95 backdrop-blur-2xl border border-gray-200/80 dark:border-gray-800/80 shadow-2xl ${
+            className={`fixed z-[95] transition-all duration-300 flex flex-col overflow-hidden text-gray-900 dark:text-white bg-white/95 dark:bg-gray-950/95 backdrop-blur-2xl border border-gray-200/80 dark:border-gray-800/80 shadow-2xl ${
               isMobile
-                ? 'inset-x-2 bottom-2 top-auto h-[92dvh] max-h-[850px] rounded-3xl pb-[env(safe-area-inset-bottom,0px)]'
+                ? 'inset-x-2 bottom-2 top-auto h-[90dvh] max-h-[820px] rounded-3xl pb-[env(safe-area-inset-bottom,0px)]'
                 : isFullscreen
                 ? 'inset-4 sm:inset-8 rounded-3xl'
                 : isMinimized
@@ -1363,22 +1434,29 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
             role="dialog"
             aria-label="AI 3D Assistant Window"
           >
+            {/* Mobile Drag Indicator Bar */}
+            {isMobile && (
+              <div className="w-full pt-2 pb-1 flex justify-center bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 select-none">
+                <div className="w-10 h-1 rounded-full bg-white/40" />
+              </div>
+            )}
+
             {/* Header */}
-            <div className="px-3.5 sm:px-4 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 text-white flex items-center justify-between shadow-md shrink-0 select-none">
-              <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="px-3.5 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 text-white flex items-center justify-between shadow-md shrink-0 select-none">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <div className="relative">
                   <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
-                    <Bot className="w-5 h-5 text-white" />
+                    <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
                   {isSpeaking && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-indigo-700 animate-ping" />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-indigo-700 animate-ping" />
                   )}
                 </div>
 
                 <div>
                   <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm md:text-base">
                     <span>Muhammad's 3D AI</span>
-                    <span className="px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                    <span className="px-1.5 py-0.5 text-[8px] sm:text-[9px] font-extrabold uppercase rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
                       Live
                     </span>
                     <span className="hidden sm:inline-block px-1.5 py-0.5 text-[9px] font-semibold rounded-md bg-white/15 text-blue-100">
@@ -1419,7 +1497,7 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
                   }`}
                   aria-label="Toggle Voice"
                 >
-                  {isTtsEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  {isTtsEnabled ? <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                 </button>
 
                 <button
@@ -1429,7 +1507,7 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
                   className="p-1.5 sm:p-2 rounded-xl text-blue-200 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
                   aria-label="Restart Conversation"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
 
                 <a
@@ -1440,7 +1518,7 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
                   className="p-1.5 sm:p-2 rounded-xl text-blue-200 hover:text-white hover:bg-white/20 transition-all"
                   aria-label="WhatsApp Muhammad"
                 >
-                  <Phone className="w-4 h-4" />
+                  <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </a>
 
                 {!isMobile && (
@@ -1484,7 +1562,7 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
                   className="p-1.5 sm:p-2 rounded-xl text-blue-200 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
                   aria-label="Close Assistant"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               </div>
             </div>
@@ -1499,14 +1577,14 @@ const ChatBot = ({ theme: propTheme }: { theme?: 'light' | 'dark' }) => {
                       ? mobileAvatarMode === 'hidden'
                         ? 'hidden'
                         : mobileAvatarMode === 'compact'
-                        ? 'h-[110px] w-full shrink-0'
-                        : 'h-[190px] w-full shrink-0'
+                        ? 'h-[95px] w-full shrink-0'
+                        : 'h-[175px] w-full shrink-0'
                       : 'w-[40%] lg:w-[38%] h-full shrink-0'
                   } bg-gradient-to-b from-blue-50/50 via-indigo-50/20 to-purple-50/30 dark:from-gray-900/80 dark:via-gray-950/70 dark:to-gray-950/90 border-b md:border-b-0 md:border-r border-gray-200/70 dark:border-gray-800/70 flex flex-col items-center justify-center overflow-hidden`}
                 >
                   <div className="w-full h-full relative cursor-grab active:cursor-grabbing select-none">
                     <Canvas
-                      camera={{ position: [0, 0.4, 3.8], fov: isMobile ? 52 : 48 }}
+                      camera={{ position: [0, 0.4, 3.8], fov: isMobile ? 54 : 48 }}
                       gl={{
                         antialias: !isMobile,
                         powerPreference: 'high-performance',
