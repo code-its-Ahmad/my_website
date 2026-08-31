@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { soundManager } from '../components/common/SoundManager';
 
 interface SoundContextType {
@@ -16,33 +16,56 @@ interface SoundContextType {
 
 const SoundContext = createContext<SoundContextType | undefined>(undefined);
 
+/*
+ * These eight delegates close over nothing at all — they are pure pass-throughs
+ * to a module singleton. Declaring them at module scope makes their identities
+ * permanently stable, which matters more than it looks:
+ *
+ * `SoundProvider` sits above `BrowserRouter` in the tree, so it wraps the entire
+ * application. Previously the provider handed down a **fresh object literal with
+ * eight fresh function identities on every render**. That invalidated every
+ * `useCallback` that depended on them — all five in `Navigation`, all of
+ * `CommandPalette`'s command list — so the memoisation throughout the app was
+ * decorative, and a single mute toggle re-rendered every consumer.
+ */
+const playHover = () => soundManager.playHover();
+const playClick = () => soundManager.playClick();
+const playSuccess = () => soundManager.playSuccess();
+const playWhoosh = () => soundManager.playWhoosh();
+const playBoot = () => soundManager.playBoot();
+const playKeypress = () => soundManager.playKeypress();
+const playBeep = (pitch?: number) => soundManager.playBeep(pitch);
+const vibrate = (pattern?: number | number[]) => soundManager.vibrate(pattern);
+
 export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMuted, setIsMuted] = useState<boolean>(() => soundManager.getMuted());
 
-  const toggleMute = () => {
-    const nextState = !isMuted;
-    setIsMuted(nextState);
-    soundManager.setMuted(nextState);
-  };
+  // Functional update so the callback needs no dependency on `isMuted`.
+  const toggleMute = useCallback(() => {
+    setIsMuted((previous) => {
+      const next = !previous;
+      soundManager.setMuted(next);
+      return next;
+    });
+  }, []);
 
-  return (
-    <SoundContext.Provider
-      value={{
-        isMuted,
-        toggleMute,
-        playHover: () => soundManager.playHover(),
-        playClick: () => soundManager.playClick(),
-        playSuccess: () => soundManager.playSuccess(),
-        playWhoosh: () => soundManager.playWhoosh(),
-        playBoot: () => soundManager.playBoot(),
-        playKeypress: () => soundManager.playKeypress(),
-        playBeep: (pitch?: number) => soundManager.playBeep(pitch),
-        vibrate: (pattern?: number | number[]) => soundManager.vibrate(pattern),
-      }}
-    >
-      {children}
-    </SoundContext.Provider>
+  const value = useMemo<SoundContextType>(
+    () => ({
+      isMuted,
+      toggleMute,
+      playHover,
+      playClick,
+      playSuccess,
+      playWhoosh,
+      playBoot,
+      playKeypress,
+      playBeep,
+      vibrate,
+    }),
+    [isMuted, toggleMute]
   );
+
+  return <SoundContext.Provider value={value}>{children}</SoundContext.Provider>;
 };
 
 export const useSound = () => {
@@ -52,4 +75,3 @@ export const useSound = () => {
   }
   return context;
 };
-
