@@ -13,7 +13,7 @@ const ThemeToggle = () => {
       whileHover={{ scale: 1.1, rotate: 15 }}
       whileTap={{ scale: 0.95 }}
     >
-      {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+      {theme === 'dark' ? <Sun className="w-[18px] h-[18px] sm:w-5 sm:h-5" /> : <Moon className="w-[18px] h-[18px] sm:w-5 sm:h-5" />}
     </motion.button>
   );
 };
