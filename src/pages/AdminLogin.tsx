@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Lock, Mail, Eye, EyeOff, ArrowRight, Sparkles, Home } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Eye, EyeOff, ArrowRight, Home } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSound } from '../context/SoundContext';
 import toast from 'react-hot-toast';
 
 const AdminLogin: React.FC = () => {
-  const [email, setEmail] = useState('admin@muhammadahmad.com');
-  const [password, setPassword] = useState('AdminPassword123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
@@ -27,20 +27,14 @@ const AdminLogin: React.FC = () => {
       playClick();
       await login(email.trim(), password);
       playSuccess();
-      toast.success('Welcome back to the Admin Suite!');
+      toast.success('Welcome back!');
       navigate('/admin');
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Invalid credentials.');
+    } catch (err) {
+      const axiosError = err as { response?: { data?: { error?: string } }; message?: string };
+      toast.error(axiosError?.response?.data?.error || axiosError?.message || 'Invalid credentials.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const fillDefaultCredentials = () => {
-    playClick();
-    setEmail('admin@muhammadahmad.com');
-    setPassword('AdminPassword123!');
-    toast.success('Loaded master administrator credentials!');
   };
 
   return (
@@ -123,15 +117,6 @@ const AdminLogin: React.FC = () => {
 
         {/* Quick Demo Helper Button */}
         <div className="pt-2 border-t border-gray-800 flex flex-col items-center gap-3">
-          <button
-            type="button"
-            onClick={fillDefaultCredentials}
-            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1.5 py-1 px-3 rounded-lg hover:bg-blue-950/40 transition-colors"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Use Default Master Admin Login</span>
-          </button>
-
           <Link
             to="/"
             className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
