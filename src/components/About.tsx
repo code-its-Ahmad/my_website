@@ -6,6 +6,7 @@ import {
   useTransform,
   useSpring,
   useInView,
+  type Variants,
 } from 'framer-motion';
 import Tilt from 'react-parallax-tilt';
 import {
@@ -49,13 +50,13 @@ interface TimelineItem {
   year: string;
   title: string;
   description: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   color: string;
 }
 
 interface TechCategory {
   name: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   color: string;
   gradient: string;
   skills: { name: string; level: number }[];
@@ -64,7 +65,7 @@ interface TechCategory {
 interface PhilosophyCard {
   title: string;
   description: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   gradient: string;
 }
 
@@ -72,7 +73,7 @@ interface FunStat {
   end: number;
   suffix: string;
   label: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   color: string;
 }
 
@@ -211,7 +212,7 @@ const FUN_STATS: FunStat[] = [
    ANIMATION VARIANTS
    ═══════════════════════════════════════════════════════════════════ */
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -219,7 +220,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,

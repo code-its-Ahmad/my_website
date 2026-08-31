@@ -38,11 +38,30 @@
 
     --radius: 0.5rem;
 
+    /*
+     * Fixed-navbar clearance, in px.
+     *
+     * Consumed by `html { scroll-padding-top }` for native fragment jumps and
+     * read back by `src/lib/scrollTo.ts` via getComputedStyle for programmatic
+     * nav clicks. Four different hard-coded values (70 / 75 / 88 / 90) used to
+     * be scattered across the navbar, the command palette, the footer and this
+     * stylesheet, so headings landed behind the bar depending on which control
+     * the visitor used.
+     */
+    --nav-offset: 70px;
+
     /* Scrollbar surfaces are tokenised so they follow the theme instead of
        being hardcoded dark (which looked broken in light mode). */
     --scrollbar-track: 210 40% 94%;
     --scrollbar-thumb-from: 217 91% 60%;
     --scrollbar-thumb-to: 258 90% 66%;
+  }
+
+  /* The bar grows slightly at md+, matching the navbar's own padding step. */
+  @media (min-width: 768px) {
+    :root {
+      --nav-offset: 90px;
+    }
   }
 
   .dark {
@@ -91,8 +110,18 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scrollbar-gutter: stable;
-    /* Anchor scrolling must clear the fixed navigation bar. */
-    scroll-padding-top: 5.5rem;
+    /*
+     * Anchor scrolling must clear the fixed navigation bar. `--nav-offset` is
+     * the single source of truth: `src/lib/scrollTo.ts` reads the same custom
+     * property, so JS-driven nav clicks and native fragment/`:target` jumps can
+     * never land at different offsets (they previously used 70, 75, 88 and 90).
+     */
+    scroll-padding-top: var(--nav-offset);
+    /*
+     * Stops scroll chaining out of the document (Android pull-to-refresh firing
+     * mid-scroll) while leaving nested scrollers working normally.
+     */
+    overscroll-behavior-y: contain;
   }
 
   body {
@@ -103,6 +132,14 @@
        them. */
     overflow-x: clip;
     min-height: 100dvh;
+  }
+
+  /* Safari < 16 and Firefox < 81 do not implement `clip`; fall back to `hidden`
+     there so those browsers still cannot scroll sideways. */
+  @supports not (overflow-x: clip) {
+    body {
+      overflow-x: hidden;
+    }
   }
 
   h1,
@@ -440,6 +477,186 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   ADVANCED SHIMMER & SCROLL ANIMATION SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes glow-border {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes magnetic-float {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  20% {
+    transform: translate(3px, -6px) rotate(0.5deg);
+  }
+  40% {
+    transform: translate(-4px, -3px) rotate(-0.5deg);
+  }
+  60% {
+    transform: translate(2px, -8px) rotate(0.3deg);
+  }
+  80% {
+    transform: translate(-3px, -5px) rotate(-0.3deg);
+  }
+}
+
+@keyframes text-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes border-spin {
+  from {
+    --border-angle: 0turn;
+  }
+  to {
+    --border-angle: 1turn;
+  }
+}
+
+/* ── Shimmer Skeleton Utilities ───────────────────────────────────────────── */
+
+.shimmer-base {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+}
+
+.shimmer-base::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 20%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 80%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 1.8s ease-in-out infinite;
+}
+
+.dark .shimmer-base::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 20%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.03) 80%,
+    transparent 100%
+  );
+}
+
+:root:not(.dark) .shimmer-base::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.03) 20%,
+    rgba(0, 0, 0, 0.06) 50%,
+    rgba(0, 0, 0, 0.03) 80%,
+    transparent 100%
+  );
+}
+
+.shimmer-block {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.dark .shimmer-block {
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.shimmer-text {
+  height: 0.875rem;
+  border-radius: 0.375rem;
+}
+
+.shimmer-text-lg {
+  height: 1.5rem;
+  border-radius: 0.5rem;
+}
+
+.shimmer-avatar {
+  border-radius: 9999px;
+}
+
+/* ── Glow border utility ─────────────────────────────────────────────────── */
+
+.glow-border {
+  background: linear-gradient(
+    var(--border-angle, 0turn),
+    rgba(59, 130, 246, 0.4),
+    rgba(168, 85, 247, 0.4),
+    rgba(6, 182, 212, 0.4),
+    rgba(59, 130, 246, 0.4)
+  );
+  background-size: 300% 300%;
+  animation: glow-border 4s linear infinite;
+}
+
+/* ── Scroll reveal base (used as a JS animation target) ──────────────────── */
+
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scroll-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.animate-magnetic-float {
+  animation: magnetic-float 8s ease-in-out infinite;
+}
+
+.animate-draw-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-line 1.5s ease-out forwards;
+}
+
+.animate-text-reveal {
+  animation: text-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    SCROLLBARS
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -526,19 +743,80 @@ html {
   border-width: 0;
 }
 
-/* Interactive targets meet the 44px minimum on touch devices. */
+/*
+ * Interactive targets meet the 44px minimum on touch devices.
+ *
+ * The previous version covered five selectors and only constrained
+ * `min-height`, so a 22x44 icon button still failed WCAG 2.5.5 on the
+ * horizontal axis, and links, `select`, `textarea` and the ARIA widget roles
+ * were not covered at all.
+ */
 @media (pointer: coarse) {
   button,
   a[role='button'],
   [role='button'],
+  [role='link'],
+  [role='tab'],
+  [role='menuitem'],
+  [role='switch'],
+  [role='checkbox'],
+  [role='radio'],
   input[type='button'],
-  input[type='submit'] {
+  input[type='submit'],
+  input[type='reset'],
+  input[type='checkbox'],
+  input[type='radio'],
+  select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /*
+   * Text inputs only need the height — a 44px `min-width` on a full-bleed field
+   * is meaningless, and forcing it on a narrow inline field would break layout.
+   */
+  input[type='text'],
+  input[type='email'],
+  input[type='tel'],
+  input[type='url'],
+  input[type='search'],
+  input[type='number'],
+  input[type='password'],
+  textarea {
     min-height: 44px;
   }
+
+  /*
+   * Inline links inside prose must NOT be inflated — that would shred
+   * paragraph line boxes. They are handled by generous padding at the call
+   * site instead.
+   */
 
   /* Opt-out for genuinely decorative or inline controls. */
   .touch-target-auto {
     min-height: 0;
+    min-width: 0;
+  }
+
+  /*
+   * Small icon buttons that sit inside a fixed-height container (a search
+   * field's clear button, a modal's close X) cannot grow without overhanging
+   * their parent. They keep their box and gain a transparent 44px hit area via
+   * a pseudo-element instead.
+   */
+  .touch-target-pseudo {
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+  }
+  .touch-target-pseudo::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
   }
 }
 
@@ -548,6 +826,29 @@ a,
 .touch-manipulation {
   /* Removes the 300ms tap delay without disabling pinch-zoom. */
   touch-action: manipulation;
+}
+
+/*
+ * Hover affordances must never latch on a touch screen.
+ *
+ * On Android and iOS a tap leaves the element in `:hover` until the next tap
+ * elsewhere, so a card that lifts and glows on hover stays lifted and glowing
+ * after being tapped. `data-touch` is published on <html> by
+ * src/lib/deviceTier.ts; these rules neutralise the sticky states without
+ * needing every call site to branch.
+ */
+[data-touch='true'] .hover-glow:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+@media (hover: none) {
+  /* Tailwind `hover:` variants are inert here anyway, but transitions that were
+     armed for hover would still fire on tap-and-hold. */
+  .no-touch-hover:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -587,22 +888,72 @@ a,
 [data-tier='low'] .animate-matrix,
 [data-tier='low'] .animate-pulse-glow,
 [data-tier='low'] .animate-ping,
-[data-tier='low'] .animate-bounce {
+[data-tier='low'] .animate-bounce,
+[data-tier='low'] .animate-pulse,
+[data-tier='low'] .animate-spin:not([data-spinner]),
+[data-tier='low'] .animate-magnetic-float,
+[data-tier='low'] .glow-border {
   animation: none !important;
+}
+
+/*
+ * `animate-pulse` was the one infinite loop missing from the list above, and it
+ * is by far the most widely used — the hero caret, the navbar status dot, the
+ * sound icon, the drawer chevron and several section badges all carry it. On a
+ * Helio G70 a dozen concurrent opacity keyframe loops is a measurable idle cost.
+ *
+ * `animate-spin` is exempted when marked `data-spinner`, because a loading
+ * spinner that does not spin reads as a frozen page.
+ */
+
+/* One-shot entrance animations are cheap; they stay on so content still lands
+   softly rather than snapping in. Only their delays are trimmed. */
+[data-tier='low'] .animate-delay-500,
+[data-tier='low'] .animate-delay-700,
+[data-tier='low'] .animate-delay-1000 {
+  animation-delay: 200ms;
+}
+
+/* Shimmer skeletons stay on low-tier — they're a UX necessity, but run slower. */
+[data-tier='low'] .shimmer-base::after {
+  animation-duration: 3s;
 }
 
 /* Multi-layer text/box shadows are cheap individually and costly in bulk. */
 [data-tier='low'] .drop-shadow-2xl,
 [data-tier='low'] .shadow-2xl {
   --tw-shadow: 0 10px 20px -8px rgb(0 0 0 / 0.35);
+  /*
+   * `--tw-shadow-colored` must be overridden too: any element also carrying a
+   * coloured shadow utility (`shadow-blue-500/50`) resolves through that
+   * variable instead, which bypassed the budget entirely.
+   */
+  --tw-shadow-colored: 0 10px 20px -8px var(--tw-shadow-color);
   filter: none;
 }
 
-/* Mid tier keeps blur but at a radius the GPU can sustain. */
+/*
+ * Mid tier keeps blur but at a radius the GPU can sustain.
+ *
+ * Setting the `--tw-backdrop-blur` variable rather than the `backdrop-filter`
+ * longhand preserves Tailwind's composed filter chain — writing the longhand
+ * silently dropped any sibling `backdrop-saturate-*` / `backdrop-brightness-*`
+ * on the same element.
+ */
 [data-tier='mid'] .backdrop-blur-3xl,
 [data-tier='mid'] .backdrop-blur-2xl {
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  --tw-backdrop-blur: blur(12px);
+}
+
+/*
+ * Parallax and depth layers are opt-in via this class so a component can mark
+ * its decorative movement as "drop me first" without importing a hook.
+ */
+[data-tier='low'] .motion-decorative,
+[data-reduced-motion='true'] .motion-decorative {
+  transform: none !important;
+  animation: none !important;
+  transition: none !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -621,7 +972,14 @@ a,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    /*
+     * Delays must be neutralised as well. Collapsing only the *duration* left
+     * `.animate-delay-1000` elements invisible for a full second before
+     * snapping in, which is worse than no animation at all.
+     */
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
 
@@ -631,12 +989,115 @@ a,
   .animate-hologram,
   .animate-matrix,
   .animate-pulse-glow,
+  .animate-pulse,
+  .animate-ping,
+  .animate-bounce,
   .animate-slide-in-up,
   .animate-slide-in-left,
   .animate-slide-in-right,
-  .animate-fade-in-scale {
+  .animate-fade-in-scale,
+  .animate-magnetic-float,
+  .animate-draw-line,
+  .animate-text-reveal,
+  .glow-border {
     animation: none !important;
   }
+
+  .scroll-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /*
+   * Swiper ships its own `!important` transitions. Because
+   * `.swiper-pagination-bullet` has higher specificity than the universal
+   * selector above, a 300ms `transition: all` (which animates `width`, forcing
+   * reflow) survived reduced motion. These re-assert it at matching specificity.
+   */
+  .swiper-pagination-bullet,
+  .swiper-slide,
+  .swiper-wrapper {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/*
+ * Belt-and-braces mirror of the query above, driven by the `data-reduced-motion`
+ * attribute that deviceTier.ts already publishes. This exists so the same
+ * degradation can be forced programmatically (very weak hardware) even when the
+ * OS-level preference is unset.
+ */
+[data-reduced-motion='true'] .animate-float,
+[data-reduced-motion='true'] .animate-glow,
+[data-reduced-motion='true'] .animate-shimmer,
+[data-reduced-motion='true'] .animate-hologram,
+[data-reduced-motion='true'] .animate-matrix,
+[data-reduced-motion='true'] .animate-pulse-glow,
+[data-reduced-motion='true'] .animate-pulse,
+[data-reduced-motion='true'] .animate-ping,
+[data-reduced-motion='true'] .animate-bounce,
+[data-reduced-motion='true'] .animate-magnetic-float,
+[data-reduced-motion='true'] .glow-border {
+  animation: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SWIPER 3D COVERFLOW CUSTOM STYLING
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.swiper-pagination-bullets.swiper-pagination-horizontal {
+  bottom: 0px !important;
+}
+
+.swiper-pagination-bullet {
+  background: #94a3b8 !important;
+  opacity: 0.4 !important;
+  /*
+   * Narrowed from `transition: all`. `all` made the browser evaluate every
+   * animatable property on each slide change — including the `box-shadow` added
+   * by the active state — when only these four actually differ.
+   */
+  transition:
+    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  width: 8px !important;
+  height: 8px !important;
+  /* 8px is far below any touch guideline; the hit area is widened invisibly. */
+  position: relative;
+}
+
+@media (pointer: coarse) {
+  .swiper-pagination-bullet::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 32px;
+    height: 32px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.dark .swiper-pagination-bullet {
+  background: #64748b !important;
+  opacity: 0.45 !important;
+}
+
+.swiper-pagination-bullet-active {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6) !important;
+  opacity: 1 !important;
+  width: 26px !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.6) !important;
+}
+
+.swiper-btn-prev,
+.swiper-btn-next {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
