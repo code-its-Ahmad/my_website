@@ -106,7 +106,7 @@ function buildCapabilities(tier: DeviceTier, isTouch: boolean, saveData: boolean
     low: {
       enable3D: false,
       enableParticles: false,
-      enableCustomCursor: false,
+      enableCustomCursor: true,
       enableHeavyBlur: false,
       enableShadows: false,
       enableConcurrentCanvases: false,
@@ -116,7 +116,7 @@ function buildCapabilities(tier: DeviceTier, isTouch: boolean, saveData: boolean
     mid: {
       enable3D: true,
       enableParticles: true,
-      enableCustomCursor: false,
+      enableCustomCursor: true,
       enableHeavyBlur: true,
       enableShadows: false,
       // One live canvas at a time — scenes yield to whichever is on screen.
@@ -138,15 +138,13 @@ function buildCapabilities(tier: DeviceTier, isTouch: boolean, saveData: boolean
 
   const caps = { ...base[tier], tier, isTouch, saveData, reducedMotion: prefersReduced };
 
-  // An explicit reduced-motion preference always wins over raw horsepower.
+  // An explicit reduced-motion preference stops heavy particle physics
   if (prefersReduced) {
     caps.enableParticles = false;
-    caps.enableCustomCursor = false;
     caps.particleCount = 0;
   }
 
-  // Touch devices never get a synthetic cursor — there is no pointer to track.
-  if (isTouch) caps.enableCustomCursor = false;
+  return caps;
 
   return caps;
 }
