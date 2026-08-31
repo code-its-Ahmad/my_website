@@ -20,6 +20,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// The only account allowed to sign in to the admin suite.
+// Mirrors the server-side rule so the client never even attempts
+// to render the CMS for any other "user".
+const MASTER_ADMIN_EMAIL = 'admin@muhammadahmad.com';
+
+const clearSession = () => {
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_user');
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('admin_user');
@@ -34,11 +44,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (storedToken) {
         try {
           const res = await authAPI.getMe();
-          setUser(res.user);
-          localStorage.setItem('admin_user', JSON.stringify(res.user));
+          const me = res.user;
+          // Defense in depth: even if a stale token for a non-owner account
+          // exists, never restore it as a valid admin session.
+          if (me?.email?.toLowerCase() !== MASTER_ADMIN_EMAIL || me?.role !== 'superadmin') {
+            throw new Error('Not the admin owner');
+          }
+          setUser(me);
+          localStorage.setItem('admin_user', JSON.stringify(me));
         } catch (error) {
-          localStorage.removeItem('admin_token');
-          localStorage.removeItem('admin_user');
+          clearSession();
           setToken(null);
           setUser(null);
         }
@@ -51,20 +66,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     const res = await authAPI.login(email, password);
+    const me = res.user;
+    if (me?.email?.toLowerCase() !== MASTER_ADMIN_EMAIL || me?.role !== 'superadmin') {
+      clearSession();
+      throw new Error('Access restricted to the site owner only.');
+    }
     setToken(res.token);
-    setUser(res.user);
+    setUser(me);
     localStorage.setItem('admin_token', res.token);
-    localStorage.setItem('admin_user', JSON.stringify(res.user));
+    localStorage.setItem('admin_user', JSON.stringify(me));
   };
 
   const logout = () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_user');
+    clearSession();
     setToken(null);
     setUser(null);
   };
 
   const updateUser = (updated: User) => {
+    // Never let the stored user drift away from the owner email.
+    if (updated.email?.toLowerCase() !== MASTER_ADMIN_EMAIL || updated.role !== 'superadmin') {
+      clearSession();
+      setToken(null);
+      setUser(null);
+      return;
+    }
     setUser(updated);
     localStorage.setItem('admin_user', JSON.stringify(updated));
   };
