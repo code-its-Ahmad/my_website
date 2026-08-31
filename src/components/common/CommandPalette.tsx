@@ -18,11 +18,13 @@ import {
   ExternalLink,
   X,
   Sparkles,
+  Bot,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
 import { usePortfolio } from '../../context/PortfolioContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -37,6 +39,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
   const { theme, toggleTheme } = useTheme();
   const { isMuted, toggleMute, playHover, playClick, playWhoosh } = useSound();
   const { projects, profile } = usePortfolio();
+  const { isAuthenticated } = useAuth();
 
   // Keyboard shortcut listener for Ctrl+K / Cmd+K and Esc
   useEffect(() => {
@@ -103,6 +106,18 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
     { id: 'services', title: 'Services & Estimator', subtitle: 'Offerings & interactive quote estimator', icon: Sparkles, action: () => scrollTo('services'), category: 'Navigation' },
     { id: 'certificates', title: 'Certificates & Credentials', subtitle: 'Meta, Stanford, AWS, Google verifications', icon: Award, action: () => scrollTo('certificates'), category: 'Navigation' },
     { id: 'contact', title: 'Contact & Inquiries', subtitle: 'WhatsApp, Email, Direct inquiry form', icon: MessageSquare, action: () => scrollTo('contact'), category: 'Navigation' },
+    {
+      id: 'chatbot',
+      title: 'Chat with 3D AI Assistant',
+      subtitle: 'Ask about skills, projects, rates, or book a project inquiry',
+      icon: Bot,
+      action: () => {
+        playClick();
+        onClose();
+        window.dispatchEvent(new CustomEvent('open-chatbot'));
+      },
+      category: 'Actions',
+    },
     { id: 'cv', title: 'Download Resume / CV', subtitle: 'Get latest PDF document', icon: Download, action: downloadCV, category: 'Actions' },
     {
       id: 'theme',
@@ -127,18 +142,22 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
       },
       category: 'Actions',
     },
-    {
-      id: 'admin',
-      title: 'Admin Control Panel',
-      subtitle: 'Full portfolio management & inquiries inbox',
-      icon: ShieldAlert,
-      action: () => {
-        playClick();
-        onClose();
-        navigate('/admin');
-      },
-      category: 'Admin',
-    },
+    ...(isAuthenticated
+      ? [
+          {
+            id: 'admin',
+            title: 'Admin Control Panel',
+            subtitle: 'Full portfolio management & inquiries inbox',
+            icon: ShieldAlert,
+            action: () => {
+              playClick();
+              onClose();
+              navigate('/admin');
+            },
+            category: 'Admin',
+          },
+        ]
+      : []),
   ];
 
   // Dynamic project search items
