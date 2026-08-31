@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useInViewport } from '@/hooks/useInViewport';
 import { useDeviceCapabilities } from '@/context/DeviceCapabilitiesContext';
 import { pickSectionVariants } from '@/lib/motion';
+import { ShimmerSection } from './ShimmerSkeleton';
 
 interface LazySectionProps {
   children: ReactNode;
@@ -16,6 +17,8 @@ interface LazySectionProps {
   /** Skip deferral for above-the-fold content. */
   eager?: boolean;
   className?: string;
+  /** Skeleton layout variant that best matches the incoming section. */
+  skeletonVariant?: 'default' | 'cards' | 'timeline' | 'hero';
 }
 
 /**
@@ -26,7 +29,7 @@ interface LazySectionProps {
  * pass. Combining lazy mounting with the reveal animation here means:
  *
  *  - the lazy chunk is only fetched as the user approaches the section
- *  - a placeholder of known height keeps the scroll position stable
+ *  - a shimmer skeleton of known height keeps the scroll position stable
  *  - the reveal animation and the mount are driven by one observer, so content
  *    can never get stuck invisible because two observers disagreed
  *
@@ -40,6 +43,7 @@ const LazySection = ({
   rootMargin = '300px 0px',
   eager = false,
   className,
+  skeletonVariant = 'default',
 }: LazySectionProps) => {
   const { reducedMotion, tier } = useDeviceCapabilities();
   const [ref, inView] = useInViewport<HTMLDivElement>({
@@ -60,16 +64,30 @@ const LazySection = ({
       initial="hidden"
       animate={shouldMount ? 'visible' : 'hidden'}
     >
-      {shouldMount ? <Suspense fallback={<SectionSkeleton minHeight={minHeight} />}>{children}</Suspense> : null}
+      {shouldMount ? (
+        <Suspense fallback={<SectionShimmer minHeight={minHeight} variant={skeletonVariant} />}>
+          {children}
+        </Suspense>
+      ) : null}
     </motion.div>
   );
 };
 
-/** Neutral, low-cost placeholder shown while a section chunk downloads. */
-const SectionSkeleton = ({ minHeight }: { minHeight: string }) => (
-  <div className="flex items-center justify-center px-4" style={{ minHeight }} aria-hidden="true">
-    <div className="h-8 w-8 rounded-full border-2 border-blue-500/20 border-t-blue-500 motion-safe:animate-spin" />
-  </div>
+/** Premium shimmer skeleton shown while a section chunk downloads. */
+const SectionShimmer = ({
+  minHeight,
+  variant,
+}: {
+  minHeight: string;
+  variant: 'default' | 'cards' | 'timeline' | 'hero';
+}) => (
+  <motion.div
+    initial={{ opacity: 0.6 }}
+    animate={{ opacity: 1 }}
+    transition={{ duration: 0.3 }}
+  >
+    <ShimmerSection minHeight={minHeight} variant={variant} />
+  </motion.div>
 );
 
 export default LazySection;
